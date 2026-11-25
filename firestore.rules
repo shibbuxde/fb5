@@ -1,0 +1,1052 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net — default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== PRIMITIVES ====================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrapAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'shibbuxorg@gmail.com' ||
+        request.auth.token.email == 'r2046347@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() ||
+        (isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function reqStr(data, key, minLen, maxLen) {
+      return key in data && data[key] is string && data[key].size() >= minLen && data[key].size() <= maxLen;
+    }
+
+    function optStr(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function reqNum(data, key, minVal, maxVal) {
+      return key in data && data[key] is number && data[key] >= minVal && data[key] <= maxVal;
+    }
+
+    function isFacebookPageUrl(url) {
+      return url is string &&
+        url.size() >= 12 &&
+        url.size() <= 600 &&
+        url.matches('^https://((www|m|mbasic|mobile|web|touch|l)\\.)?(facebook\\.com|fb\\.com|fb\\.me)/.+');
+    }
+
+    function isNormalizedFacebookUrl(url) {
+      return url is string &&
+        url.size() >= 14 &&
+        url.size() <= 300 &&
+        url.matches('^facebook\\.com/[a-zA-Z0-9._\\-]+$');
+    }
+
+    function isFacebookProofUrl(url) {
+      return url is string &&
+        url.size() >= 12 &&
+        url.size() <= 600 &&
+        url.matches('^https://((www|m|mbasic|mobile|web|touch|l)\\.)?(facebook\\.com|fb\\.com|fb\\.me|fb\\.watch)/.+');
+    }
+
+    // ==================== VALIDATION BLUEPRINTS ====================
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'addedBy', 'createdAt']) &&
+        reqStr(data, 'uid', 1, 128) &&
+        reqStr(data, 'email', 3, 200) &&
+        optStr(data, 'addedBy', 128) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAdminSettings(data) {
+      return data.keys().hasAll([
+          'trainingTitle', 'trainingDescription', 'trainingBenefits', 'trainingAccessDetails',
+          'trainingContentModules', 'trainingPrice', 'trainingThumbnailUrl', 'paymentQrImageUrl',
+          'paymentUpiId', 'paymentMerchantName', 'paymentInstructions',
+          'plan50Price', 'plan100Price', 'plan150Price',
+          'plan50MonthlySalary', 'plan100MonthlySalary', 'plan150MonthlySalary',
+          'plan50WeeklyCommission', 'plan100WeeklyCommission', 'plan150WeeklyCommission',
+          'minWithdrawalLimit', 'weeklyPayoutDay', 'weeklyPayoutTime', 'workDurationDays',
+          'workInstructionsGlobal', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'trainingTitle', 'trainingDescription', 'trainingBenefits', 'trainingAccessDetails',
+          'trainingContentModules', 'trainingPrice', 'trainingThumbnailUrl', 'paymentQrImageUrl',
+          'paymentUpiId', 'paymentMerchantName', 'paymentInstructions',
+          'plan50Price', 'plan100Price', 'plan150Price',
+          'plan50MonthlySalary', 'plan100MonthlySalary', 'plan150MonthlySalary',
+          'plan50WeeklyCommission', 'plan100WeeklyCommission', 'plan150WeeklyCommission',
+          'minWithdrawalLimit', 'weeklyPayoutDay', 'weeklyPayoutTime', 'workDurationDays',
+          'workInstructionsGlobal', 'updatedAt'
+        ]) &&
+        reqStr(data, 'trainingTitle', 1, 200) &&
+        reqStr(data, 'trainingDescription', 1, 4000) &&
+        data.trainingBenefits is list && data.trainingBenefits.size() <= 20 &&
+        (data.trainingBenefits.size() == 0 || data.trainingBenefits[0] is string) &&
+        reqStr(data, 'trainingAccessDetails', 0, 2000) &&
+        data.trainingContentModules is list && data.trainingContentModules.size() <= 30 &&
+        (data.trainingContentModules.size() == 0 || data.trainingContentModules[0] is map) &&
+        reqNum(data, 'trainingPrice', 0, 1000000) &&
+        reqStr(data, 'trainingThumbnailUrl', 0, 350000) &&
+        reqStr(data, 'paymentQrImageUrl', 0, 350000) &&
+        reqStr(data, 'paymentUpiId', 0, 120) &&
+        reqStr(data, 'paymentMerchantName', 0, 120) &&
+        reqStr(data, 'paymentInstructions', 0, 1000) &&
+        reqNum(data, 'plan50Price', 0, 1000000) &&
+        reqNum(data, 'plan100Price', 0, 1000000) &&
+        reqNum(data, 'plan150Price', 0, 1000000) &&
+        reqNum(data, 'plan50MonthlySalary', 0, 1000000) &&
+        reqNum(data, 'plan100MonthlySalary', 0, 1000000) &&
+        reqNum(data, 'plan150MonthlySalary', 0, 1000000) &&
+        reqNum(data, 'plan50WeeklyCommission', 0, 1000000) &&
+        reqNum(data, 'plan100WeeklyCommission', 0, 1000000) &&
+        reqNum(data, 'plan150WeeklyCommission', 0, 1000000) &&
+        reqNum(data, 'minWithdrawalLimit', 0, 1000000) &&
+        reqStr(data, 'weeklyPayoutDay', 1, 30) &&
+        reqStr(data, 'weeklyPayoutTime', 1, 40) &&
+        reqNum(data, 'workDurationDays', 1, 31) &&
+        reqStr(data, 'workInstructionsGlobal', 0, 5000) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll([
+          'uid', 'userCode', 'fullName', 'email', 'role', 'referralCode',
+          'trainingVerified', 'trainingStatus', 'accountStatus', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'userCode', 'fullName', 'email', 'phone', 'photoUrl', 'role',
+          'referralCode', 'referredByUid', 'referredByCode',
+          'trainingVerified', 'trainingStatus', 'activePlanPages', 'activePlanPurchaseId',
+          'accountStatus', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'uid', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        reqStr(data, 'fullName', 1, 120) &&
+        reqStr(data, 'email', 3, 200) &&
+        optStr(data, 'phone', 30) &&
+        optStr(data, 'photoUrl', 250000) &&
+        data.role in ['user', 'admin'] &&
+        reqStr(data, 'referralCode', 3, 32) &&
+        optStr(data, 'referredByUid', 128) &&
+        optStr(data, 'referredByCode', 32) &&
+        data.trainingVerified is bool &&
+        data.trainingStatus in ['not_purchased', 'pending', 'verified', 'revoked'] &&
+        (!('activePlanPages' in data) || data.activePlanPages in [0, 50, 100, 150]) &&
+        optStr(data, 'activePlanPurchaseId', 128) &&
+        data.accountStatus in ['active', 'suspended'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidReferralCode(data) {
+      return data.keys().hasAll(['code', 'ownerUid', 'ownerCode', 'createdAt']) &&
+        data.keys().hasOnly(['code', 'ownerUid', 'ownerCode', 'ownerName', 'createdAt']) &&
+        reqStr(data, 'code', 3, 32) &&
+        reqStr(data, 'ownerUid', 1, 128) &&
+        reqStr(data, 'ownerCode', 3, 32) &&
+        optStr(data, 'ownerName', 120) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidTrainingPurchase(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'userName', 'userEmail', 'amount', 'utrNumber', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'userEmail', 'amount', 'utrNumber', 'receiptUrl',
+          'status', 'adminNote', 'verifiedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        reqStr(data, 'userName', 1, 120) &&
+        reqStr(data, 'userEmail', 3, 200) &&
+        reqNum(data, 'amount', 0, 1000000) &&
+        reqStr(data, 'utrNumber', 3, 100) &&
+        optStr(data, 'receiptUrl', 300000) &&
+        data.status in ['pending', 'verified', 'rejected'] &&
+        optStr(data, 'adminNote', 500) &&
+        optStr(data, 'verifiedBy', 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPlanPurchase(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'userName', 'planPages', 'planPrice',
+          'monthlySalarySnapshot', 'weeklyCommissionSnapshot', 'paymentStatus',
+          'workStarted', 'submittedPagesCount', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'planPages', 'planPrice',
+          'monthlySalarySnapshot', 'weeklyCommissionSnapshot', 'utrNumber', 'receiptUrl',
+          'paymentStatus', 'workStarted', 'workStartedAt', 'currentWeekKey',
+          'submittedPagesCount', 'adminNote', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        reqStr(data, 'userName', 1, 120) &&
+        data.planPages in [50, 100, 150] &&
+        reqNum(data, 'planPrice', 0, 1000000) &&
+        reqNum(data, 'monthlySalarySnapshot', 0, 1000000) &&
+        reqNum(data, 'weeklyCommissionSnapshot', 0, 1000000) &&
+        optStr(data, 'utrNumber', 100) &&
+        optStr(data, 'receiptUrl', 300000) &&
+        data.paymentStatus in ['pending', 'approved', 'rejected'] &&
+        data.workStarted is bool &&
+        optStr(data, 'workStartedAt', 64) &&
+        optStr(data, 'currentWeekKey', 40) &&
+        reqNum(data, 'submittedPagesCount', 0, 150) &&
+        optStr(data, 'adminNote', 500) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidFacebookPage(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'planPurchaseId', 'planPages', 'slotIndex',
+          'rawUrl', 'normalizedUrl', 'canonicalKey', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'planPurchaseId', 'planPages', 'slotIndex',
+          'rawUrl', 'normalizedUrl', 'canonicalKey', 'status', 'rejectionReason',
+          'lastWorkDate', 'totalApprovedTasks', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        optStr(data, 'userName', 120) &&
+        reqStr(data, 'planPurchaseId', 1, 128) &&
+        data.planPages in [50, 100, 150] &&
+        reqNum(data, 'slotIndex', 1, 150) &&
+        isFacebookPageUrl(data.rawUrl) &&
+        isNormalizedFacebookUrl(data.normalizedUrl) &&
+        isValidId(data.canonicalKey) &&
+        data.status in [
+          'Pending Approval', 'Approved', 'Work Active', 'Work Paused',
+          'Rejected', 'Page Deactivated', 'Work Discontinued'
+        ] &&
+        optStr(data, 'rejectionReason', 400) &&
+        optStr(data, 'lastWorkDate', 40) &&
+        (!('totalApprovedTasks' in data) || reqNum(data, 'totalApprovedTasks', 0, 100000)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidGlobalFacebookPage(data) {
+      return data.keys().hasAll([
+          'canonicalKey', 'normalizedUrl', 'rawUrl', 'ownerUserId', 'ownerUserCode', 'pageDocId', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'canonicalKey', 'normalizedUrl', 'rawUrl', 'ownerUserId', 'ownerUserCode', 'ownerName', 'pageDocId', 'createdAt'
+        ]) &&
+        isValidId(data.canonicalKey) &&
+        isNormalizedFacebookUrl(data.normalizedUrl) &&
+        isFacebookPageUrl(data.rawUrl) &&
+        reqStr(data, 'ownerUserId', 1, 128) &&
+        reqStr(data, 'ownerUserCode', 3, 32) &&
+        optStr(data, 'ownerName', 120) &&
+        reqStr(data, 'pageDocId', 1, 128) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidDailyInstruction(data) {
+      return data.keys().hasAll(['title', 'description', 'taskDate', 'isActive', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'title', 'description', 'guidelines', 'videoUrl', 'taskDate', 'isActive', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'title', 2, 200) &&
+        reqStr(data, 'description', 2, 3000) &&
+        optStr(data, 'guidelines', 3000) &&
+        optStr(data, 'videoUrl', 1000) &&
+        reqStr(data, 'taskDate', 6, 32) &&
+        data.isActive is bool &&
+        optStr(data, 'createdBy', 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidDailySubmission(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'pageId', 'instructionId', 'proofUrl', 'workDate', 'weekKey', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'pageId', 'pageUrl', 'instructionId', 'instructionTitle',
+          'proofUrl', 'notes', 'workDate', 'weekKey', 'status', 'rejectionReason', 'verifiedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        optStr(data, 'userName', 120) &&
+        reqStr(data, 'pageId', 1, 128) &&
+        optStr(data, 'pageUrl', 600) &&
+        reqStr(data, 'instructionId', 1, 128) &&
+        optStr(data, 'instructionTitle', 200) &&
+        isFacebookProofUrl(data.proofUrl) &&
+        optStr(data, 'notes', 800) &&
+        reqStr(data, 'workDate', 6, 32) &&
+        reqStr(data, 'weekKey', 4, 32) &&
+        data.status in ['Task Submitted', 'Pending Verification', 'Approved', 'Rejected'] &&
+        optStr(data, 'rejectionReason', 400) &&
+        optStr(data, 'verifiedBy', 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWeeklyVerification(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'planPurchaseId', 'planPages', 'weekKey',
+          'totalSubmittedPages', 'verifiedActivePages', 'monthlySalaryRate',
+          'weeklyCommissionRate', 'calculatedSalary', 'calculatedCommission',
+          'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'planPurchaseId', 'planPages', 'weekKey',
+          'totalSubmittedPages', 'verifiedActivePages', 'deactivatedPages', 'rejectedPages',
+          'monthlySalaryRate', 'weeklyCommissionRate', 'calculatedSalary', 'calculatedCommission',
+          'referrerUid', 'status', 'adminNotes', 'verifiedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        optStr(data, 'userName', 120) &&
+        reqStr(data, 'planPurchaseId', 1, 128) &&
+        data.planPages in [50, 100, 150] &&
+        reqStr(data, 'weekKey', 4, 32) &&
+        reqNum(data, 'totalSubmittedPages', 0, 150) &&
+        reqNum(data, 'verifiedActivePages', 0, 150) &&
+        (!('deactivatedPages' in data) || reqNum(data, 'deactivatedPages', 0, 150)) &&
+        (!('rejectedPages' in data) || reqNum(data, 'rejectedPages', 0, 150)) &&
+        reqNum(data, 'monthlySalaryRate', 0, 1000000) &&
+        reqNum(data, 'weeklyCommissionRate', 0, 1000000) &&
+        reqNum(data, 'calculatedSalary', 0, 1000000) &&
+        reqNum(data, 'calculatedCommission', 0, 1000000) &&
+        optStr(data, 'referrerUid', 128) &&
+        data.status in ['requested', 'under_review', 'approved', 'rejected'] &&
+        optStr(data, 'adminNotes', 1000) &&
+        optStr(data, 'verifiedBy', 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWeeklySalary(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'verificationId', 'weekKey', 'planPages',
+          'verifiedActivePages', 'monthlySalaryRate', 'amount', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'verificationId', 'weekKey', 'planPages',
+          'verifiedActivePages', 'monthlySalaryRate', 'amount', 'status', 'createdAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        optStr(data, 'userName', 120) &&
+        reqStr(data, 'verificationId', 1, 128) &&
+        reqStr(data, 'weekKey', 4, 32) &&
+        data.planPages in [50, 100, 150] &&
+        reqNum(data, 'verifiedActivePages', 0, 150) &&
+        reqNum(data, 'monthlySalaryRate', 0, 1000000) &&
+        reqNum(data, 'amount', 0, 1000000) &&
+        data.status == 'credited' &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAffiliateReferral(data) {
+      return data.keys().hasAll([
+          'referrerUid', 'referrerCode', 'referredUid', 'referredCode', 'referredName', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'referrerUid', 'referrerCode', 'referredUid', 'referredCode', 'referredName',
+          'referredPlanPages', 'activePagesCount', 'inactivePagesCount', 'trainingVerified',
+          'status', 'lastWeekCommission', 'totalCommissionEarned', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'referrerUid', 1, 128) &&
+        reqStr(data, 'referrerCode', 3, 32) &&
+        reqStr(data, 'referredUid', 1, 128) &&
+        reqStr(data, 'referredCode', 3, 32) &&
+        reqStr(data, 'referredName', 1, 120) &&
+        (!('referredPlanPages' in data) || data.referredPlanPages in [0, 50, 100, 150]) &&
+        (!('activePagesCount' in data) || reqNum(data, 'activePagesCount', 0, 150)) &&
+        (!('inactivePagesCount' in data) || reqNum(data, 'inactivePagesCount', 0, 150)) &&
+        (!('trainingVerified' in data) || data.trainingVerified is bool) &&
+        data.status in ['pending', 'active', 'inactive', 'flagged'] &&
+        (!('lastWeekCommission' in data) || reqNum(data, 'lastWeekCommission', 0, 1000000)) &&
+        (!('totalCommissionEarned' in data) || reqNum(data, 'totalCommissionEarned', 0, 100000000)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWeeklyCommission(data) {
+      return data.keys().hasAll([
+          'referrerUid', 'referredUid', 'verificationId', 'weekKey', 'planPages',
+          'verifiedActivePages', 'weeklyCommissionRate', 'amount', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'referrerUid', 'referredUid', 'referredName', 'verificationId', 'weekKey', 'planPages',
+          'verifiedActivePages', 'weeklyCommissionRate', 'amount', 'status', 'createdAt'
+        ]) &&
+        reqStr(data, 'referrerUid', 1, 128) &&
+        reqStr(data, 'referredUid', 1, 128) &&
+        optStr(data, 'referredName', 120) &&
+        reqStr(data, 'verificationId', 1, 128) &&
+        reqStr(data, 'weekKey', 4, 32) &&
+        data.planPages in [50, 100, 150] &&
+        reqNum(data, 'verifiedActivePages', 0, 150) &&
+        reqNum(data, 'weeklyCommissionRate', 0, 1000000) &&
+        reqNum(data, 'amount', 0, 1000000) &&
+        data.status == 'credited' &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidWallet(data) {
+      return data.keys().hasAll([
+          'userId', 'availableBalance', 'reservedBalance', 'pendingEarnings',
+          'totalSalaryIncome', 'totalAffiliateIncome', 'currentWeekEarnings',
+          'totalWithdrawn', 'lifetimeEarnings', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'availableBalance', 'reservedBalance', 'pendingEarnings',
+          'totalSalaryIncome', 'totalAffiliateIncome', 'currentWeekEarnings',
+          'totalWithdrawn', 'lifetimeEarnings', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqNum(data, 'availableBalance', 0, 100000000) &&
+        reqNum(data, 'reservedBalance', 0, 100000000) &&
+        reqNum(data, 'pendingEarnings', 0, 100000000) &&
+        reqNum(data, 'totalSalaryIncome', 0, 100000000) &&
+        reqNum(data, 'totalAffiliateIncome', 0, 100000000) &&
+        reqNum(data, 'currentWeekEarnings', 0, 100000000) &&
+        reqNum(data, 'totalWithdrawn', 0, 100000000) &&
+        reqNum(data, 'lifetimeEarnings', 0, 100000000) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWalletTransaction(data) {
+      return data.keys().hasAll([
+          'txnCode', 'userId', 'type', 'direction', 'amount', 'description', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'txnCode', 'userId', 'type', 'direction', 'amount', 'description', 'referenceId', 'status', 'createdAt'
+        ]) &&
+        reqStr(data, 'txnCode', 3, 40) &&
+        reqStr(data, 'userId', 1, 128) &&
+        data.type in [
+          'Affiliate Commission', 'Monthly Salary', 'Weekly Salary Credit',
+          'Withdrawal', 'Refund', 'Admin Adjustment'
+        ] &&
+        data.direction in ['credit', 'debit'] &&
+        reqNum(data, 'amount', 0, 100000000) &&
+        reqStr(data, 'description', 1, 400) &&
+        optStr(data, 'referenceId', 128) &&
+        data.status in ['Pending', 'Completed', 'Rejected'] &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidPaymentMethod(data) {
+      return data.keys().hasAll(['userId', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'userId', 'bankHolderName', 'bankName', 'accountNumber', 'ifscCode',
+          'upiId', 'upiHolderName', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        optStr(data, 'bankHolderName', 120) &&
+        optStr(data, 'bankName', 120) &&
+        optStr(data, 'accountNumber', 40) &&
+        optStr(data, 'ifscCode', 20) &&
+        optStr(data, 'upiId', 120) &&
+        optStr(data, 'upiHolderName', 120) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWithdrawalRequest(data) {
+      return data.keys().hasAll([
+          'requestCode', 'userId', 'userCode', 'userName', 'amount', 'methodType',
+          'methodSummary', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'requestCode', 'userId', 'userCode', 'userName', 'amount', 'methodType',
+          'methodSummary', 'accountHolderName', 'bankName', 'accountNumber', 'ifscCode',
+          'upiId', 'status', 'utrReference', 'adminNote', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'requestCode', 3, 40) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        reqStr(data, 'userName', 1, 120) &&
+        reqNum(data, 'amount', 1, 100000000) &&
+        data.methodType in ['bank', 'upi'] &&
+        reqStr(data, 'methodSummary', 2, 300) &&
+        optStr(data, 'accountHolderName', 120) &&
+        optStr(data, 'bankName', 120) &&
+        optStr(data, 'accountNumber', 40) &&
+        optStr(data, 'ifscCode', 20) &&
+        optStr(data, 'upiId', 120) &&
+        data.status in ['Pending', 'Under Review', 'Approved', 'Payment Processing', 'Paid', 'Rejected'] &&
+        optStr(data, 'utrReference', 100) &&
+        optStr(data, 'adminNote', 500) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'eventType', 'title', 'message', 'read', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'eventType', 'title', 'message', 'read', 'createdAt']) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'eventType', 2, 80) &&
+        reqStr(data, 'title', 2, 160) &&
+        reqStr(data, 'message', 2, 600) &&
+        data.read is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSupportTicket(data) {
+      return data.keys().hasAll([
+          'userId', 'userCode', 'userName', 'subject', 'category', 'message', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'userId', 'userCode', 'userName', 'subject', 'category', 'message', 'status', 'adminReply', 'createdAt', 'updatedAt'
+        ]) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        reqStr(data, 'userName', 1, 120) &&
+        reqStr(data, 'subject', 2, 200) &&
+        reqStr(data, 'category', 2, 60) &&
+        reqStr(data, 'message', 2, 2000) &&
+        data.status in ['Open', 'Replied', 'Closed'] &&
+        optStr(data, 'adminReply', 2000) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminActivityLog(data) {
+      return data.keys().hasAll(['adminUid', 'adminEmail', 'action', 'targetType', 'targetId', 'details', 'createdAt']) &&
+        data.keys().hasOnly(['adminUid', 'adminEmail', 'action', 'targetType', 'targetId', 'details', 'createdAt']) &&
+        reqStr(data, 'adminUid', 1, 128) &&
+        reqStr(data, 'adminEmail', 3, 200) &&
+        reqStr(data, 'action', 2, 160) &&
+        reqStr(data, 'targetType', 2, 80) &&
+        reqStr(data, 'targetId', 1, 128) &&
+        reqStr(data, 'details', 1, 1000) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidPageActivityRecord(data) {
+      return data.keys().hasAll([
+          'pageId', 'userId', 'userCode', 'pageUrl', 'weekKey',
+          'previousStatus', 'newStatus', 'changedBy', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'pageId', 'userId', 'userCode', 'pageUrl', 'weekKey',
+          'previousStatus', 'newStatus', 'reason', 'changedBy', 'createdAt'
+        ]) &&
+        reqStr(data, 'pageId', 1, 128) &&
+        reqStr(data, 'userId', 1, 128) &&
+        reqStr(data, 'userCode', 3, 32) &&
+        reqStr(data, 'pageUrl', 4, 300) &&
+        reqStr(data, 'weekKey', 4, 32) &&
+        reqStr(data, 'previousStatus', 2, 60) &&
+        reqStr(data, 'newStatus', 2, 60) &&
+        optStr(data, 'reason', 400) &&
+        reqStr(data, 'changedBy', 1, 128) &&
+        data.createdAt is timestamp;
+    }
+
+    // ==================== COLLECTION RULES ====================
+
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isBootstrapAdmin();
+      allow create: if isValidId(uid) && isValidAdminRecord(incoming()) && isAdmin() && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(uid) && isBootstrapAdmin();
+    }
+
+    match /admin_settings/{settingId} {
+      allow get: if isValidId(settingId) && isSignedIn() && settingId == 'global';
+      allow create, update: if isValidId(settingId) && settingId == 'global' && isValidAdminSettings(incoming()) && isAdmin() && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isValidId(uid) &&
+        isVerified() &&
+        isValidUser(incoming()) &&
+        incoming().uid == uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(uid) &&
+            incoming().role == 'user' &&
+            incoming().trainingVerified == false &&
+            incoming().trainingStatus == 'not_purchased' &&
+            incoming().accountStatus == 'active'
+          )
+        );
+      allow update: if isValidId(uid) &&
+        isVerified() &&
+        isValidUser(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(uid) &&
+            incoming().role == existing().role &&
+            incoming().trainingVerified == existing().trainingVerified &&
+            incoming().accountStatus == existing().accountStatus &&
+            (
+              // Action 1: Update profile fields
+              incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'photoUrl', 'updatedAt']) ||
+              // Action 2: Mark training pending after QR payment submission
+              (
+                existing().trainingStatus != 'verified' &&
+                incoming().trainingStatus == 'pending' &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['trainingStatus', 'updatedAt'])
+              ) ||
+              // Action 3: Link newly purchased work plan after training verified
+              (
+                existing().trainingVerified == true &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['activePlanPages', 'activePlanPurchaseId', 'updatedAt'])
+              )
+            )
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /referral_codes/{code} {
+      allow get: if isValidId(code) && isSignedIn();
+      allow create: if isValidId(code) &&
+        isVerified() &&
+        isValidReferralCode(incoming()) &&
+        incoming().code == code &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        !exists(/databases/$(database)/documents/referral_codes/$(code));
+      allow update, delete: if isValidId(code) && isAdmin();
+    }
+
+    match /training_purchases/{purchaseId} {
+      allow get: if isValidId(purchaseId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(purchaseId) &&
+        isVerified() &&
+        isValidTrainingPurchase(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(purchaseId) &&
+        isVerified() &&
+        isValidTrainingPurchase(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    match /plan_purchases/{purchaseId} {
+      allow get: if isValidId(purchaseId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(purchaseId) &&
+        isVerified() &&
+        isValidPlanPurchase(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().workStarted == false &&
+        incoming().submittedPagesCount == 0 &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (incoming().planPrice > 0 && incoming().paymentStatus == 'pending') ||
+          (incoming().planPrice == 0 && incoming().paymentStatus == 'approved')
+        );
+      allow update: if isValidId(purchaseId) &&
+        isVerified() &&
+        isValidPlanPurchase(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().planPages == existing().planPages &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            existing().userId == request.auth.uid &&
+            (
+              // Action 1: Increment submitted pages count during page upload
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['submittedPagesCount', 'updatedAt']) &&
+                incoming().submittedPagesCount >= existing().submittedPagesCount &&
+                incoming().submittedPagesCount <= existing().planPages
+              ) ||
+              // Action 2: Start Work strictly after ALL plan pages are uploaded and payment is approved
+              (
+                existing().paymentStatus == 'approved' &&
+                existing().submittedPagesCount >= existing().planPages &&
+                incoming().workStarted == true &&
+                incoming().diff(existing()).affectedKeys().hasOnly(['workStarted', 'workStartedAt', 'currentWeekKey', 'updatedAt'])
+              )
+            )
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /global_facebook_pages/{canonicalKey} {
+      allow get: if isValidId(canonicalKey) && isSignedIn();
+      allow list: if isBootstrapAdmin();
+      allow create: if isValidId(canonicalKey) &&
+        isVerified() &&
+        isValidGlobalFacebookPage(incoming()) &&
+        incoming().canonicalKey == canonicalKey &&
+        incoming().ownerUserId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        !exists(/databases/$(database)/documents/global_facebook_pages/$(canonicalKey));
+      allow update: if isValidId(canonicalKey) && isValidGlobalFacebookPage(incoming()) && isAdmin();
+      allow delete: if isValidId(canonicalKey) && isAdmin();
+    }
+
+    match /facebook_pages/{pageId} {
+      allow get: if isValidId(pageId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(pageId) &&
+        isVerified() &&
+        isValidFacebookPage(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'Pending Approval' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/global_facebook_pages/$(incoming().canonicalKey));
+      allow update: if isValidId(pageId) &&
+        isVerified() &&
+        isValidFacebookPage(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().canonicalKey == existing().canonicalKey &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if isValidId(pageId) && isAdmin();
+    }
+
+    match /daily_instructions/{instructionId} {
+      allow get: if isValidId(instructionId) && isSignedIn();
+      allow list: if isSignedIn() && (resource.data.isActive == true || isBootstrapAdmin());
+      allow create: if isValidId(instructionId) &&
+        isValidDailyInstruction(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(instructionId) &&
+        isValidDailyInstruction(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(instructionId) && isAdmin();
+    }
+
+    match /daily_submissions/{submissionId} {
+      allow get: if isValidId(submissionId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(submissionId) &&
+        isVerified() &&
+        isValidDailySubmission(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status in ['Task Submitted', 'Pending Verification'] &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(submissionId) &&
+        isVerified() &&
+        isValidDailySubmission(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    match /weekly_verifications/{verificationId} {
+      allow get: if isValidId(verificationId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(verificationId) &&
+        isVerified() &&
+        isValidWeeklyVerification(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            incoming().userId == request.auth.uid &&
+            incoming().status == 'requested' &&
+            incoming().verifiedActivePages == 0 &&
+            incoming().calculatedSalary == 0 &&
+            incoming().calculatedCommission == 0
+          )
+        );
+      allow update: if isValidId(verificationId) &&
+        isVerified() &&
+        isValidWeeklyVerification(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    match /weekly_salaries/{salaryId} {
+      allow get: if isValidId(salaryId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(salaryId) &&
+        isValidWeeklySalary(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /affiliate_referrals/{referralId} {
+      allow get: if isValidId(referralId) && isSignedIn() &&
+        (existing().referrerUid == request.auth.uid || existing().referredUid == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() ||
+        (isSignedIn() && (resource.data.referrerUid == request.auth.uid || resource.data.referredUid == request.auth.uid));
+      allow create: if isValidId(referralId) &&
+        isVerified() &&
+        isValidAffiliateReferral(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            incoming().referredUid == request.auth.uid &&
+            incoming().referrerUid != request.auth.uid &&
+            incoming().status == 'pending' &&
+            incoming().totalCommissionEarned == 0 &&
+            incoming().lastWeekCommission == 0
+          )
+        );
+      allow update: if isValidId(referralId) &&
+        isVerified() &&
+        isValidAffiliateReferral(incoming()) &&
+        incoming().referrerUid == existing().referrerUid &&
+        incoming().referredUid == existing().referredUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            existing().referredUid == request.auth.uid &&
+            existing().trainingVerified == true &&
+            incoming().totalCommissionEarned == existing().totalCommissionEarned &&
+            incoming().lastWeekCommission == existing().lastWeekCommission &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['referredPlanPages', 'status', 'updatedAt']) &&
+            incoming().status == 'active'
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /weekly_commissions/{commissionId} {
+      allow get: if isValidId(commissionId) && isSignedIn() && (existing().referrerUid == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.referrerUid == request.auth.uid);
+      allow create: if isValidId(commissionId) &&
+        isValidWeeklyCommission(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /wallets/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(uid) &&
+        isVerified() &&
+        isValidWallet(incoming()) &&
+        incoming().userId == uid &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(uid) &&
+            incoming().availableBalance == 0 &&
+            incoming().reservedBalance == 0 &&
+            incoming().pendingEarnings == 0 &&
+            incoming().totalSalaryIncome == 0 &&
+            incoming().totalAffiliateIncome == 0 &&
+            incoming().currentWeekEarnings == 0 &&
+            incoming().totalWithdrawn == 0 &&
+            incoming().lifetimeEarnings == 0
+          )
+        );
+      allow update: if isValidId(uid) &&
+        isVerified() &&
+        isValidWallet(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            // User can ONLY shift funds from availableBalance -> reservedBalance when requesting a withdrawal
+            isOwner(uid) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['availableBalance', 'reservedBalance', 'updatedAt']) &&
+            incoming().availableBalance < existing().availableBalance &&
+            incoming().reservedBalance > existing().reservedBalance &&
+            math.abs((incoming().availableBalance + incoming().reservedBalance) - (existing().availableBalance + existing().reservedBalance)) < 0.01
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /wallet_transactions/{txnId} {
+      allow get: if isValidId(txnId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(txnId) &&
+        isVerified() &&
+        isValidWalletTransaction(incoming()) &&
+        incoming().createdAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            incoming().userId == request.auth.uid &&
+            incoming().type == 'Withdrawal' &&
+            incoming().direction == 'debit' &&
+            incoming().status == 'Pending'
+          )
+        );
+      allow update: if isValidId(txnId) &&
+        isValidWalletTransaction(incoming()) &&
+        isAdmin() &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+    }
+
+    match /payment_methods/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isBootstrapAdmin();
+      allow create: if isValidId(uid) &&
+        isVerified() &&
+        isValidPaymentMethod(incoming()) &&
+        incoming().userId == uid &&
+        incoming().updatedAt == request.time &&
+        (isOwner(uid) || isAdmin());
+      allow update: if isValidId(uid) &&
+        isVerified() &&
+        isValidPaymentMethod(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().updatedAt == request.time &&
+        (isOwner(uid) || isAdmin());
+      allow delete: if false;
+    }
+
+    match /withdrawal_requests/{withdrawalId} {
+      allow get: if isValidId(withdrawalId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(withdrawalId) &&
+        isVerified() &&
+        isValidWithdrawalRequest(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'Pending' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(withdrawalId) &&
+        isVerified() &&
+        isValidWithdrawalRequest(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    match /notifications/{notifId} {
+      allow get: if isValidId(notifId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(notifId) &&
+        isVerified() &&
+        isValidNotification(incoming()) &&
+        incoming().createdAt == request.time &&
+        (isAdmin() || (incoming().userId == request.auth.uid && incoming().read == false));
+      allow update: if isValidId(notifId) &&
+        isVerified() &&
+        isValidNotification(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['read']))
+        );
+      allow delete: if false;
+    }
+
+    match /support_tickets/{ticketId} {
+      allow get: if isValidId(ticketId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(ticketId) &&
+        isVerified() &&
+        isValidSupportTicket(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'Open' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(ticketId) &&
+        isVerified() &&
+        isValidSupportTicket(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if false;
+    }
+
+    match /admin_activity_logs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isBootstrapAdmin();
+      allow create: if isValidId(logId) &&
+        isValidAdminActivityLog(incoming()) &&
+        isAdmin() &&
+        incoming().adminUid == request.auth.uid &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /page_activity_records/{recordId} {
+      allow get: if isValidId(recordId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isBootstrapAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(recordId) &&
+        isValidPageActivityRecord(incoming()) &&
+        isAdmin() &&
+        incoming().changedBy == request.auth.uid &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}

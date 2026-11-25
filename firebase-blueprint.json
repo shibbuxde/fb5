@@ -1,0 +1,475 @@
+{
+  "entities": {
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Authorized platform administrator UID record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "addedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "AdminSettings": {
+      "title": "AdminSettings",
+      "description": "Global editable platform settings, pricing, training media, QR code, and payout rules.",
+      "type": "object",
+      "properties": {
+        "trainingTitle": { "type": "string", "maxLength": 200 },
+        "trainingDescription": { "type": "string", "maxLength": 4000 },
+        "trainingBenefits": { "type": "array" },
+        "trainingAccessDetails": { "type": "string", "maxLength": 2000 },
+        "trainingContentModules": { "type": "array" },
+        "trainingPrice": { "type": "number" },
+        "trainingThumbnailUrl": { "type": "string", "maxLength": 350000 },
+        "paymentQrImageUrl": { "type": "string", "maxLength": 350000 },
+        "paymentUpiId": { "type": "string", "maxLength": 120 },
+        "paymentMerchantName": { "type": "string", "maxLength": 120 },
+        "paymentInstructions": { "type": "string", "maxLength": 1000 },
+        "plan50Price": { "type": "number" },
+        "plan100Price": { "type": "number" },
+        "plan150Price": { "type": "number" },
+        "plan50MonthlySalary": { "type": "number" },
+        "plan100MonthlySalary": { "type": "number" },
+        "plan150MonthlySalary": { "type": "number" },
+        "plan50WeeklyCommission": { "type": "number" },
+        "plan100WeeklyCommission": { "type": "number" },
+        "plan150WeeklyCommission": { "type": "number" },
+        "minWithdrawalLimit": { "type": "number" },
+        "weeklyPayoutDay": { "type": "string", "maxLength": 30 },
+        "weeklyPayoutTime": { "type": "string", "maxLength": 40 },
+        "workDurationDays": { "type": "number" },
+        "workInstructionsGlobal": { "type": "string", "maxLength": 5000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["trainingTitle", "trainingPrice", "plan50MonthlySalary", "plan100MonthlySalary", "plan150MonthlySalary", "minWithdrawalLimit"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user account, unique User ID, profile info, and training/plan access state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "photoUrl": { "type": "string", "maxLength": 250000 },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "referralCode": { "type": "string", "maxLength": 32 },
+        "referredByUid": { "type": "string", "maxLength": 128 },
+        "referredByCode": { "type": "string", "maxLength": 32 },
+        "trainingVerified": { "type": "boolean" },
+        "trainingStatus": { "type": "string", "enum": ["not_purchased", "pending", "verified", "revoked"] },
+        "activePlanPages": { "type": "number" },
+        "activePlanPurchaseId": { "type": "string", "maxLength": 128 },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "userCode", "fullName", "email", "role", "referralCode", "trainingVerified", "trainingStatus", "accountStatus", "createdAt", "updatedAt"]
+    },
+    "ReferralCodeIndex": {
+      "title": "ReferralCodeIndex",
+      "description": "Non-PII referral code mapping to referrer UID.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 32 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "ownerCode": { "type": "string", "maxLength": 32 },
+        "ownerName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "ownerUid", "ownerCode", "createdAt"]
+    },
+    "TrainingPurchase": {
+      "title": "TrainingPurchase",
+      "description": "One-time paid training payment submission awaiting admin verification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "userEmail": { "type": "string", "maxLength": 200 },
+        "amount": { "type": "number" },
+        "utrNumber": { "type": "string", "maxLength": 100 },
+        "receiptUrl": { "type": "string", "maxLength": 300000 },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "adminNote": { "type": "string", "maxLength": 500 },
+        "verifiedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "userName", "userEmail", "amount", "utrNumber", "status", "createdAt", "updatedAt"]
+    },
+    "PlanPurchase": {
+      "title": "PlanPurchase",
+      "description": "User enrollment in a 50, 100, or 150 Facebook Pages work plan.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "planPages": { "type": "number" },
+        "planPrice": { "type": "number" },
+        "monthlySalarySnapshot": { "type": "number" },
+        "weeklyCommissionSnapshot": { "type": "number" },
+        "utrNumber": { "type": "string", "maxLength": 100 },
+        "receiptUrl": { "type": "string", "maxLength": 300000 },
+        "paymentStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "workStarted": { "type": "boolean" },
+        "workStartedAt": { "type": "string", "maxLength": 64 },
+        "currentWeekKey": { "type": "string", "maxLength": 40 },
+        "submittedPagesCount": { "type": "number" },
+        "adminNote": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "userName", "planPages", "planPrice", "monthlySalarySnapshot", "weeklyCommissionSnapshot", "paymentStatus", "workStarted", "submittedPagesCount", "createdAt", "updatedAt"]
+    },
+    "FacebookPageLink": {
+      "title": "FacebookPageLink",
+      "description": "Individual Facebook Page link submitted under a user's work plan.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "planPurchaseId": { "type": "string", "maxLength": 128 },
+        "planPages": { "type": "number" },
+        "slotIndex": { "type": "number" },
+        "rawUrl": { "type": "string", "maxLength": 600 },
+        "normalizedUrl": { "type": "string", "maxLength": 300 },
+        "canonicalKey": { "type": "string", "maxLength": 128 },
+        "status": {
+          "type": "string",
+          "enum": ["Pending Approval", "Approved", "Work Active", "Work Paused", "Rejected", "Page Deactivated", "Work Discontinued"]
+        },
+        "rejectionReason": { "type": "string", "maxLength": 400 },
+        "lastWorkDate": { "type": "string", "maxLength": 40 },
+        "totalApprovedTasks": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "planPurchaseId", "planPages", "slotIndex", "rawUrl", "normalizedUrl", "canonicalKey", "status", "createdAt", "updatedAt"]
+    },
+    "GlobalFacebookPageLock": {
+      "title": "GlobalFacebookPageLock",
+      "description": "Database-level global uniqueness lock keyed by canonical Facebook Page identifier.",
+      "type": "object",
+      "properties": {
+        "canonicalKey": { "type": "string", "maxLength": 128 },
+        "normalizedUrl": { "type": "string", "maxLength": 300 },
+        "rawUrl": { "type": "string", "maxLength": 600 },
+        "ownerUserId": { "type": "string", "maxLength": 128 },
+        "ownerUserCode": { "type": "string", "maxLength": 32 },
+        "ownerName": { "type": "string", "maxLength": 120 },
+        "pageDocId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["canonicalKey", "normalizedUrl", "rawUrl", "ownerUserId", "ownerUserCode", "pageDocId", "createdAt"]
+    },
+    "DailyInstruction": {
+      "title": "DailyInstruction",
+      "description": "Admin-published daily video instruction and work guideline.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "guidelines": { "type": "string", "maxLength": 3000 },
+        "videoUrl": { "type": "string", "maxLength": 1000 },
+        "taskDate": { "type": "string", "maxLength": 32 },
+        "isActive": { "type": "boolean" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "taskDate", "isActive", "createdAt", "updatedAt"]
+    },
+    "DailySubmission": {
+      "title": "DailySubmission",
+      "description": "User daily video upload proof submitted against an active Facebook Page.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "pageId": { "type": "string", "maxLength": 128 },
+        "pageUrl": { "type": "string", "maxLength": 600 },
+        "instructionId": { "type": "string", "maxLength": 128 },
+        "instructionTitle": { "type": "string", "maxLength": 200 },
+        "proofUrl": { "type": "string", "maxLength": 600 },
+        "notes": { "type": "string", "maxLength": 800 },
+        "workDate": { "type": "string", "maxLength": 32 },
+        "weekKey": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["Task Submitted", "Pending Verification", "Approved", "Rejected"] },
+        "rejectionReason": { "type": "string", "maxLength": 400 },
+        "verifiedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "pageId", "instructionId", "proofUrl", "workDate", "weekKey", "status", "createdAt", "updatedAt"]
+    },
+    "WeeklyVerification": {
+      "title": "WeeklyVerification",
+      "description": "End-of-7-day cycle verification record keyed deterministically to prevent duplicate payouts.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "planPurchaseId": { "type": "string", "maxLength": 128 },
+        "planPages": { "type": "number" },
+        "weekKey": { "type": "string", "maxLength": 32 },
+        "totalSubmittedPages": { "type": "number" },
+        "verifiedActivePages": { "type": "number" },
+        "deactivatedPages": { "type": "number" },
+        "rejectedPages": { "type": "number" },
+        "monthlySalaryRate": { "type": "number" },
+        "weeklyCommissionRate": { "type": "number" },
+        "calculatedSalary": { "type": "number" },
+        "calculatedCommission": { "type": "number" },
+        "referrerUid": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["requested", "under_review", "approved", "rejected"] },
+        "adminNotes": { "type": "string", "maxLength": 1000 },
+        "verifiedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "planPurchaseId", "planPages", "weekKey", "totalSubmittedPages", "verifiedActivePages", "monthlySalaryRate", "weeklyCommissionRate", "calculatedSalary", "calculatedCommission", "status", "createdAt", "updatedAt"]
+    },
+    "WeeklySalary": {
+      "title": "WeeklySalary",
+      "description": "Immutable weekly salary credit record generated after admin verification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "verificationId": { "type": "string", "maxLength": 128 },
+        "weekKey": { "type": "string", "maxLength": 32 },
+        "planPages": { "type": "number" },
+        "verifiedActivePages": { "type": "number" },
+        "monthlySalaryRate": { "type": "number" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["credited"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "verificationId", "weekKey", "planPages", "verifiedActivePages", "monthlySalaryRate", "amount", "status", "createdAt"]
+    },
+    "AffiliateReferral": {
+      "title": "AffiliateReferral",
+      "description": "Direct single-level affiliate referral tracking record.",
+      "type": "object",
+      "properties": {
+        "referrerUid": { "type": "string", "maxLength": 128 },
+        "referrerCode": { "type": "string", "maxLength": 32 },
+        "referredUid": { "type": "string", "maxLength": 128 },
+        "referredCode": { "type": "string", "maxLength": 32 },
+        "referredName": { "type": "string", "maxLength": 120 },
+        "referredPlanPages": { "type": "number" },
+        "activePagesCount": { "type": "number" },
+        "inactivePagesCount": { "type": "number" },
+        "trainingVerified": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "active", "inactive", "flagged"] },
+        "lastWeekCommission": { "type": "number" },
+        "totalCommissionEarned": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referrerUid", "referrerCode", "referredUid", "referredCode", "referredName", "status", "createdAt", "updatedAt"]
+    },
+    "WeeklyCommission": {
+      "title": "WeeklyCommission",
+      "description": "Immutable weekly affiliate commission credit record generated after admin verification.",
+      "type": "object",
+      "properties": {
+        "referrerUid": { "type": "string", "maxLength": 128 },
+        "referredUid": { "type": "string", "maxLength": 128 },
+        "referredName": { "type": "string", "maxLength": 120 },
+        "verificationId": { "type": "string", "maxLength": 128 },
+        "weekKey": { "type": "string", "maxLength": 32 },
+        "planPages": { "type": "number" },
+        "verifiedActivePages": { "type": "number" },
+        "weeklyCommissionRate": { "type": "number" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["credited"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referrerUid", "referredUid", "verificationId", "weekKey", "planPages", "verifiedActivePages", "weeklyCommissionRate", "amount", "status", "createdAt"]
+    },
+    "UserWallet": {
+      "title": "UserWallet",
+      "description": "User financial balances strictly separating Available vs Pending earnings.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "availableBalance": { "type": "number" },
+        "reservedBalance": { "type": "number" },
+        "pendingEarnings": { "type": "number" },
+        "totalSalaryIncome": { "type": "number" },
+        "totalAffiliateIncome": { "type": "number" },
+        "currentWeekEarnings": { "type": "number" },
+        "totalWithdrawn": { "type": "number" },
+        "lifetimeEarnings": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "availableBalance", "reservedBalance", "pendingEarnings", "totalSalaryIncome", "totalAffiliateIncome", "currentWeekEarnings", "totalWithdrawn", "lifetimeEarnings", "updatedAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Financial transaction history ledger entry.",
+      "type": "object",
+      "properties": {
+        "txnCode": { "type": "string", "maxLength": 40 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": {
+          "type": "string",
+          "enum": ["Affiliate Commission", "Monthly Salary", "Weekly Salary Credit", "Withdrawal", "Refund", "Admin Adjustment"]
+        },
+        "direction": { "type": "string", "enum": ["credit", "debit"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string", "maxLength": 400 },
+        "referenceId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Pending", "Completed", "Rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["txnCode", "userId", "type", "direction", "amount", "description", "status", "createdAt"]
+    },
+    "PaymentMethod": {
+      "title": "PaymentMethod",
+      "description": "Private user Bank Account and UPI payout details.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "bankHolderName": { "type": "string", "maxLength": 120 },
+        "bankName": { "type": "string", "maxLength": 120 },
+        "accountNumber": { "type": "string", "maxLength": 40 },
+        "ifscCode": { "type": "string", "maxLength": 20 },
+        "upiId": { "type": "string", "maxLength": 120 },
+        "upiHolderName": { "type": "string", "maxLength": 120 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "updatedAt"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "User weekly payout request tracked through 6 lifecycle stages.",
+      "type": "object",
+      "properties": {
+        "requestCode": { "type": "string", "maxLength": 40 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "amount": { "type": "number" },
+        "methodType": { "type": "string", "enum": ["bank", "upi"] },
+        "methodSummary": { "type": "string", "maxLength": 300 },
+        "accountHolderName": { "type": "string", "maxLength": 120 },
+        "bankName": { "type": "string", "maxLength": 120 },
+        "accountNumber": { "type": "string", "maxLength": 40 },
+        "ifscCode": { "type": "string", "maxLength": 20 },
+        "upiId": { "type": "string", "maxLength": 120 },
+        "status": {
+          "type": "string",
+          "enum": ["Pending", "Under Review", "Approved", "Payment Processing", "Paid", "Rejected"]
+        },
+        "utrReference": { "type": "string", "maxLength": 100 },
+        "adminNote": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestCode", "userId", "userCode", "userName", "amount", "methodType", "methodSummary", "status", "createdAt", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User lifecycle notification across all 18 platform events.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "maxLength": 160 },
+        "message": { "type": "string", "maxLength": 600 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "eventType", "title", "message", "read", "createdAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "User support inquiry managed by admins.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "userName": { "type": "string", "maxLength": 120 },
+        "subject": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 60 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["Open", "Replied", "Closed"] },
+        "adminReply": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userCode", "userName", "subject", "category", "message", "status", "createdAt", "updatedAt"]
+    },
+    "AdminActivityLog": {
+      "title": "AdminActivityLog",
+      "description": "Audit log of all administrative mutations.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "adminEmail": { "type": "string", "maxLength": 200 },
+        "action": { "type": "string", "maxLength": 160 },
+        "targetType": { "type": "string", "maxLength": 80 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "adminEmail", "action", "targetType", "targetId", "details", "createdAt"]
+    },
+    "PageActivityRecord": {
+      "title": "PageActivityRecord",
+      "description": "Immutable log of Facebook Page status transitions to detect mid-week deactivations during 7th-day audits.",
+      "type": "object",
+      "properties": {
+        "pageId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userCode": { "type": "string", "maxLength": 32 },
+        "pageUrl": { "type": "string", "maxLength": 300 },
+        "weekKey": { "type": "string", "maxLength": 32 },
+        "previousStatus": { "type": "string", "maxLength": 60 },
+        "newStatus": { "type": "string", "maxLength": 60 },
+        "reason": { "type": "string", "maxLength": 400 },
+        "changedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pageId", "userId", "userCode", "pageUrl", "weekKey", "previousStatus", "newStatus", "changedBy", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{uid}": { "schema": { "$ref": "#/entities/AdminRecord" }, "description": "Authorized admin accounts" },
+    "/admin_settings/{settingId}": { "schema": { "$ref": "#/entities/AdminSettings" }, "description": "Global platform pricing, QR code, training, and payout settings" },
+    "/users/{uid}": { "schema": { "$ref": "#/entities/UserProfile" }, "description": "User accounts and profile information" },
+    "/referral_codes/{code}": { "schema": { "$ref": "#/entities/ReferralCodeIndex" }, "description": "Non-PII referral code directory" },
+    "/training_purchases/{purchaseId}": { "schema": { "$ref": "#/entities/TrainingPurchase" }, "description": "Paid training verification requests" },
+    "/plan_purchases/{purchaseId}": { "schema": { "$ref": "#/entities/PlanPurchase" }, "description": "50/100/150 page work plan enrollments" },
+    "/facebook_pages/{pageId}": { "schema": { "$ref": "#/entities/FacebookPageLink" }, "description": "User submitted Facebook Page links and statuses" },
+    "/global_facebook_pages/{canonicalKey}": { "schema": { "$ref": "#/entities/GlobalFacebookPageLock" }, "description": "Database-level global duplicate link prevention registry" },
+    "/page_activity_records/{recordId}": { "schema": { "$ref": "#/entities/PageActivityRecord" }, "description": "Immutable Facebook Page approval and mid-week status transition log" },
+    "/daily_instructions/{instructionId}": { "schema": { "$ref": "#/entities/DailyInstruction" }, "description": "Admin daily video work instructions" },
+    "/daily_submissions/{submissionId}": { "schema": { "$ref": "#/entities/DailySubmission" }, "description": "User daily video upload proof submissions" },
+    "/weekly_verifications/{verificationId}": { "schema": { "$ref": "#/entities/WeeklyVerification" }, "description": "7-day weekly verification audits" },
+    "/weekly_salaries/{salaryId}": { "schema": { "$ref": "#/entities/WeeklySalary" }, "description": "Approved weekly salary payout history" },
+    "/affiliate_referrals/{referralId}": { "schema": { "$ref": "#/entities/AffiliateReferral" }, "description": "Direct single-level affiliate referral records" },
+    "/weekly_commissions/{commissionId}": { "schema": { "$ref": "#/entities/WeeklyCommission" }, "description": "Approved weekly affiliate commission history" },
+    "/wallets/{uid}": { "schema": { "$ref": "#/entities/UserWallet" }, "description": "User wallet balances separating Available vs Pending" },
+    "/wallet_transactions/{txnId}": { "schema": { "$ref": "#/entities/WalletTransaction" }, "description": "Immutable wallet transaction ledger" },
+    "/payment_methods/{uid}": { "schema": { "$ref": "#/entities/PaymentMethod" }, "description": "User private Bank Account and UPI details" },
+    "/withdrawal_requests/{withdrawalId}": { "schema": { "$ref": "#/entities/WithdrawalRequest" }, "description": "User withdrawal requests and admin payout tracking" },
+    "/notifications/{notifId}": { "schema": { "$ref": "#/entities/Notification" }, "description": "User event notifications" },
+    "/support_tickets/{ticketId}": { "schema": { "$ref": "#/entities/SupportTicket" }, "description": "User support tickets" },
+    "/admin_activity_logs/{logId}": { "schema": { "$ref": "#/entities/AdminActivityLog" }, "description": "Admin audit trail logs" }
+  }
+}
